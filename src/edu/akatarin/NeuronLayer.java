@@ -9,6 +9,8 @@ public class NeuronLayer {
     private final Neuron[] neurons;
     private final double[][] weights;
     private double[][] weightDeltas;
+    private final double[] biases;
+    private double[] biasDeltas;
 
     public NeuronLayer(int size, int nextSize) {
         Random r = new Random();
@@ -16,6 +18,8 @@ public class NeuronLayer {
         this.nextSize = nextSize;
         weights = new double[size][nextSize];
         weightDeltas = new double[size][nextSize];
+        biases = new double[nextSize];
+        biasDeltas = new double[nextSize];
         neurons = new Neuron[size];
         for (int i = 0; i < size; i++) {
             neurons[i] = new Neuron();
@@ -23,6 +27,17 @@ public class NeuronLayer {
                 weights[i][j] = r.nextGaussian();
             }
         }
+        for (int i = 0; i < nextSize; i++) {
+            biases[i] = r.nextGaussian();
+        }
+    }
+
+    public double[] getBiases() {
+        return biases;
+    }
+
+    public double[] getBiasDeltas() {
+        return biasDeltas;
     }
 
     public double[][] getWeightDeltas() {
@@ -35,6 +50,13 @@ public class NeuronLayer {
             for (int j = 0; j < nextSize; j++) {
                 weights[i][j] = weights[i][j] + weightDeltas[i][j];
             }
+        }
+    }
+
+    public void updateBias( double[] biasDelta ){
+        this.biasDeltas = biasDelta;
+        for (int i = 0; i < nextSize; i++) {
+            biases[i] = biases[i] + biasDelta[i];
         }
     }
 
@@ -59,7 +81,7 @@ public class NeuronLayer {
             for (int j = 0; j < size; j++) {
                 total += neurons[j].getValue() * weights[j][i];
             }
-            output[i] = activation(total);
+            output[i] = activation(total + biases[i]);
         }
         return output;
     }

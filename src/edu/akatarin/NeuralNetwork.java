@@ -4,22 +4,22 @@ import java.util.Arrays;
 
 public class NeuralNetwork {
     private final static double LEARNING_RATE = 0.01;
-    private final static double MOMENTUM = 0;
+    private final static double MOMENTUM = 0.7;
     private final static int INPUT_LAYER_SIZE = 784;
     private final static int HIDDEN_LAYER_SIZE = 800;
     private final static int OUTPUT_LAYER_SIZE = 10;
 
     private final static double[][] ideals = {
-            {1, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-            {0, 1, 0, 0, 0, 0, 0, 0, 0, 0},
-            {0, 0, 1, 0, 0, 0, 0, 0, 0, 0},
-            {0, 0, 0, 1, 0, 0, 0, 0, 0, 0},
-            {0, 0, 0, 0, 1, 0, 0, 0, 0, 0},
-            {0, 0, 0, 0, 0, 1, 0, 0, 0, 0},
-            {0, 0, 0, 0, 0, 0, 1, 0, 0, 0},
-            {0, 0, 0, 0, 0, 0, 0, 1, 0, 0},
-            {0, 0, 0, 0, 0, 0, 0, 0, 1, 0},
-            {0, 0, 0, 0, 0, 0, 0, 0, 0, 1}
+            {1, 0, 0, 0, 0, 0, 0, 0, 0, 0},//0
+            {0, 1, 0, 0, 0, 0, 0, 0, 0, 0},//1
+            {0, 0, 1, 0, 0, 0, 0, 0, 0, 0},//2
+            {0, 0, 0, 1, 0, 0, 0, 0, 0, 0},//3
+            {0, 0, 0, 0, 1, 0, 0, 0, 0, 0},//4
+            {0, 0, 0, 0, 0, 1, 0, 0, 0, 0},//5
+            {0, 0, 0, 0, 0, 0, 1, 0, 0, 0},//6
+            {0, 0, 0, 0, 0, 0, 0, 1, 0, 0},//7
+            {0, 0, 0, 0, 0, 0, 0, 0, 1, 0},//8
+            {0, 0, 0, 0, 0, 0, 0, 0, 0, 1},//9
     };
 
     private final NeuronLayer inputLayer;
@@ -56,9 +56,10 @@ public class NeuralNetwork {
 
     //производная от функции активации(сигмоида)
     private double sigmDx(double x) {
-        return (1 - x) * x;
+        return x * (1 - x);
     }
 
+    //дельты(ошибки) значений нейронов выходного слоя
     private double[] calcOutputWeightsDelta(Number number) {
         double[] deltas = new double[OUTPUT_LAYER_SIZE];
         double[] idealOut = ideals[number.getValue()];
@@ -70,7 +71,7 @@ public class NeuralNetwork {
         return deltas;
     }
 
-    private double[] calcHiddenWeightsDelta(double[] outputsDelta) {
+    private double[] calcHiddenWeightsL1Delta(double[] outputsDelta) {
         double[] deltas = new double[HIDDEN_LAYER_SIZE];
         Neuron[] output = hiddenLayer.getNeurons();
         double[][] weights = hiddenLayer.getWeights();//800x10
@@ -85,84 +86,50 @@ public class NeuralNetwork {
         return deltas;
     }
 
-//    private double[][] calcHiddenLayerWeightGradients(double[] outputsDelta) {
-//        double[][] gradients = new double[HIDDEN_LAYER_SIZE][OUTPUT_LAYER_SIZE];
-//        Neuron[] output = hiddenLayer.getNeurons();
-//        for (int i = 0; i < HIDDEN_LAYER_SIZE; i++) {
-//            for (int j = 0; j < OUTPUT_LAYER_SIZE; j++) {
-//                gradients[i][j] = output[i].getValue() * outputsDelta[j];
-//            }
-//        }
-//        return gradients;
-//    }
-//
-//    private double[][] calcHiddenLayerWeightDeltas(double[][] hiddenLayerWeightGradients) {
-//        double[][] deltas = new double[HIDDEN_LAYER_SIZE][OUTPUT_LAYER_SIZE];
-//        double[][] prevDeltas = hiddenLayer.getWeightDeltas();
-//        for (int i = 0; i < HIDDEN_LAYER_SIZE; i++) {
-//            for (int j = 0; j < OUTPUT_LAYER_SIZE; j++) {
-//                deltas[i][j] = LEARNING_RATE * hiddenLayerWeightGradients[i][j] + MOMENTUM * prevDeltas[i][j];
-//            }
-//        }
-//        return deltas;
-//    }
-//
-//    private double[][] calcInputLayerWeightGradients(double[] hiddenDelta) {
-//        double[][] gradients = new double[INPUT_LAYER_SIZE][HIDDEN_LAYER_SIZE];
-//        Neuron[] output = inputLayer.getNeurons();
-//        for (int i = 0; i < INPUT_LAYER_SIZE; i++) {
-//            for (int j = 0; j < HIDDEN_LAYER_SIZE; j++) {
-//                gradients[i][j] = output[i].getValue() * hiddenDelta[j];
-//            }
-//        }
-//        return gradients;
-//    }
-//
-//    private double[][] calcInputLayerWeightDeltas(double[][] inputLayerWeightGradients) {
-//        double[][] deltas = new double[INPUT_LAYER_SIZE][HIDDEN_LAYER_SIZE];
-//        double[][] prevDeltas = inputLayer.getWeightDeltas();
-//        for (int i = 0; i < INPUT_LAYER_SIZE; i++) {
-//            for (int j = 0; j < HIDDEN_LAYER_SIZE; j++) {
-//                deltas[i][j] = LEARNING_RATE * inputLayerWeightGradients[i][j] + MOMENTUM * prevDeltas[i][j];
-//            }
-//        }
-//        return deltas;
-//    }
-
-    private void updateInputLayerWeights(double[] hiddenWeightsDelta){
+    /*
+    изменение веса синапса равно коэффициенту скорости обучения, умноженному на градиент этого веса,
+    прибавить момент умноженный на предыдущее изменение этого веса (на 1-ой итерации равно 0)
+     */
+    private void updateInputLayerWeights(double[] hiddenL1WeightsDelta) {
         double[][] deltas = new double[INPUT_LAYER_SIZE][HIDDEN_LAYER_SIZE];
+        double[] biasDelta = new double[HIDDEN_LAYER_SIZE];
         Neuron[] neurons = inputLayer.getNeurons();
+        double[][] prevWeightDeltas = inputLayer.getWeightDeltas();
+        double[] prevBiasDeltas = inputLayer.getBiasDeltas();
         for (int i = 0; i < INPUT_LAYER_SIZE; i++) {
             for (int j = 0; j < HIDDEN_LAYER_SIZE; j++) {
-                deltas[i][j] = neurons[i].getValue()*hiddenWeightsDelta[j]*LEARNING_RATE;
+                double gradient = neurons[i].getValue() * hiddenL1WeightsDelta[j];
+                deltas[i][j] = (gradient * LEARNING_RATE) + (MOMENTUM * prevWeightDeltas[i][j]);
+                biasDelta[j] = (hiddenL1WeightsDelta[j] * LEARNING_RATE) + (MOMENTUM * prevBiasDeltas[j]);
             }
         }
         inputLayer.updateWeights(deltas);
+        inputLayer.updateBias(biasDelta);
     }
 
-    private void updateHiddenLayerWeights(double[] outputWeightsDelta){
+    private void updateHiddenLayerWeights(double[] outputsDelta) {
         double[][] deltas = new double[HIDDEN_LAYER_SIZE][OUTPUT_LAYER_SIZE];
+        double[] biasDelta = new double[OUTPUT_LAYER_SIZE];
         Neuron[] neurons = hiddenLayer.getNeurons();
+        double[][] prevWeightDeltas = hiddenLayer.getWeightDeltas();
+        double[] prevBiasDeltas = hiddenLayer.getBiasDeltas();
         for (int i = 0; i < HIDDEN_LAYER_SIZE; i++) {
             for (int j = 0; j < OUTPUT_LAYER_SIZE; j++) {
-                deltas[i][j] = neurons[i].getValue()*outputWeightsDelta[j]*LEARNING_RATE;
+                double gradient = neurons[i].getValue() * outputsDelta[j];
+                deltas[i][j] = (gradient * LEARNING_RATE) + (MOMENTUM * prevWeightDeltas[i][j]);
+                biasDelta[j] = (outputsDelta[j] * LEARNING_RATE) + (MOMENTUM * prevBiasDeltas[j]);
             }
         }
         hiddenLayer.updateWeights(deltas);
+        hiddenLayer.updateBias(biasDelta);
     }
 
     public void backpropagation(Number number) {
         double[] outputsDelta = calcOutputWeightsDelta(number);
+        double[] hiddenDelta = calcHiddenWeightsL1Delta(outputsDelta);
+
         updateHiddenLayerWeights(outputsDelta);
-        double[] hiddenDelta = calcHiddenWeightsDelta(outputsDelta);
         updateInputLayerWeights(hiddenDelta);
 
-//        double[][] hiddenLayerWeightGradients = calcHiddenLayerWeightGradients(outputsDelta);
-//        double[][] hiddenLayerWeightDeltas = calcHiddenLayerWeightDeltas(hiddenLayerWeightGradients);
-//        hiddenLayer.updateWeights(hiddenLayerWeightDeltas);
-//
-//        double[][] inputLayerWeightGradients = calcInputLayerWeightGradients(hiddenDelta);
-//        double[][] inputLayerWeightDeltas = calcInputLayerWeightDeltas(inputLayerWeightGradients);
-//        inputLayer.updateWeights(inputLayerWeightDeltas);
     }
 }
