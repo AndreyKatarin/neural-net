@@ -21,12 +21,12 @@ public class Main {
     }
 
     private static void trainStochasticGD(NeuralNetwork neuralNetwork) throws IOException {
-        int epochs = 1000;
+        int epochs = 100;
         double avgError;
         Random random = new Random();
         for (int i = 0; i < epochs; i++) {
             double total = 0;
-            for (int j = 0; j < 1000; j++) {
+            for (int j = 0; j < data.length; j++) {
                 File file = data[random.nextInt(data.length)];
                 Number number = fileToNumber(file);
                 neuralNetwork.feedForward(number);
@@ -34,22 +34,27 @@ public class Main {
                 double mse = neuralNetwork.getMSE(number);
                 total += mse;
             }
-            avgError = (total) / 1000;
-            System.out.print("\rEpoch: " + i + " Avg. MSE:" +avgError+ " TotalError: " + total);
+            avgError = (total) / data.length;
+            System.out.print("\rEpoch: " + i + " Avg.MSE:" +avgError);
         }
     }
 
     private static void trainMiniBatchGD(NeuralNetwork neuralNetwork, int batchSize) throws IOException {
         int epochs = data.length / batchSize;
         Random random = new Random();
-        for (int i = 0; i < epochs; i++) {
-            Number[] batch = new Number[batchSize];
-            for (int j = 0; j < batchSize; j++) {
-                File file = data[random.nextInt(data.length)];
-                batch[j] = fileToNumber(file);
+        for (int e = 0; e < 100; e++) {
+            double total =0;
+            for (int i = 0; i < epochs; i++) {
+                Number[] batch = new Number[batchSize];
+                for (int j = 0; j < batchSize; j++) {
+                    File file = data[random.nextInt(data.length)];
+                    batch[j] = fileToNumber(file);
+                }
+                double MAE_ERROR = neuralNetwork.trainBatch(batch) / batchSize;
+                total += MAE_ERROR;
             }
-            double MAE_ERROR = neuralNetwork.trainBatch(batch);//(1.0 / batchSize) * neuralNetwork.trainBatch(batch);
-            System.out.print("\rEpoch: " + i + " MAE_ERROR:" +MAE_ERROR);
+            double ERR = (1.0 / batchSize) * total;
+            System.out.print("\rEpoch: " + e + " MAE_ERROR:" +ERR+" Total: "+total);
         }
     }
 
@@ -57,8 +62,8 @@ public class Main {
         data = new File("F:\\mnist\\data").listFiles();
         if (data == null) return;
         NeuralNetwork neuralNetwork = new NeuralNetwork();
-        //trainStochasticGD(neuralNetwork);
-        trainMiniBatchGD(neuralNetwork, 200);
+        trainStochasticGD(neuralNetwork);
+        //trainMiniBatchGD(neuralNetwork, 200);
         double overall = 0;
         Random random = new Random();
         for (int i = 0; i < 100; i++) {

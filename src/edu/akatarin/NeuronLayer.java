@@ -4,9 +4,11 @@ import java.util.Random;
 
 public class NeuronLayer {
 
+    private Activation activation = Activation.Sigmoid;//default
     private final int size;
     private final int nextSize;
     private final Neuron[] neurons;
+    private double[] deltas;
     private final double[][] weights;
     private double[][] weightDeltas;
     private final double[] biases;
@@ -16,6 +18,7 @@ public class NeuronLayer {
         Random r = new Random();
         this.size = size;
         this.nextSize = nextSize;
+        deltas = new double[size];
         weights = new double[size][nextSize];
         weightDeltas = new double[size][nextSize];
         biases = new double[nextSize];
@@ -32,6 +35,27 @@ public class NeuronLayer {
         }
     }
 
+    public NeuronLayer(int size, int nextSize, Activation activation){
+        this(size,nextSize);
+        this.activation = activation;
+    }
+
+    public int getSize() {
+        return size;
+    }
+
+    public int getNextSize() {
+        return nextSize;
+    }
+
+    public double[] getDeltas() {
+        return deltas;
+    }
+
+    public void setDeltas(double[] deltas) {
+        this.deltas = deltas;
+    }
+
     public double[] getBiases() {
         return biases;
     }
@@ -44,11 +68,15 @@ public class NeuronLayer {
         return weightDeltas;
     }
 
+    public Activation getActivation() {
+        return activation;
+    }
+
     public void updateWeights (double[][] weightDeltas) {
         this.weightDeltas = weightDeltas;
         for (int i = 0; i < size; i++) {
             for (int j = 0; j < nextSize; j++) {
-                weights[i][j] = weights[i][j] + weightDeltas[i][j];
+                weights[i][j] = weights[i][j] - weightDeltas[i][j];
             }
         }
     }
@@ -56,7 +84,7 @@ public class NeuronLayer {
     public void updateBias( double[] biasDelta ){
         this.biasDeltas = biasDelta;
         for (int i = 0; i < nextSize; i++) {
-            biases[i] = biases[i] + biasDelta[i];
+            biases[i] = biases[i] - biasDelta[i];
         }
     }
 
@@ -81,12 +109,8 @@ public class NeuronLayer {
             for (int j = 0; j < size; j++) {
                 total += neurons[j].getValue() * weights[j][i];
             }
-            output[i] = activation(total + biases[i]);
+            output[i] = activation.apply(total + biases[i]);
         }
         return output;
-    }
-
-    private double activation(double x) {
-        return 1 / (1 + Math.exp(-x));
     }
 }

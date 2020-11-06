@@ -3,11 +3,13 @@ package edu.akatarin;
 import java.util.Arrays;
 
 public class NeuralNetwork {
+    private CostFunction costFunction = CostFunction.MSE;//default
     private final static double LEARNING_RATE = 0.05;
-    private final static double MOMENTUM = 0.1;
+    private final static double MOMENTUM = 0;//0.7-0.9
     private final static int INPUT_LAYER_SIZE = 784;
-    private final static int HIDDEN_LAYER_ONE_SIZE = 300;
-    private final static int HIDDEN_LAYER_TWO_SIZE = 50;
+    private final static int HIDDEN_LAYERS_COUNT = 1;
+    private final static int HIDDEN_LAYER_ONE_SIZE = 38;
+    private final static int HIDDEN_LAYER_TWO_SIZE = 12;
     private final static int OUTPUT_LAYER_SIZE = 10;
 
     private final static double[][] ideals = {
@@ -24,15 +26,54 @@ public class NeuralNetwork {
     };
 
     private final NeuronLayer inputLayer;
-    private final NeuronLayer hiddenLayerOne;
-    private final NeuronLayer hiddenLayerTwo;
+    private final NeuronLayer[] hiddenLayers;
     private final NeuronLayer outputLayer;
 
     public NeuralNetwork() {
-        this.inputLayer = new NeuronLayer(INPUT_LAYER_SIZE, HIDDEN_LAYER_ONE_SIZE);
-        this.hiddenLayerOne = new NeuronLayer(HIDDEN_LAYER_ONE_SIZE, HIDDEN_LAYER_TWO_SIZE);
-        this.hiddenLayerTwo = new NeuronLayer(HIDDEN_LAYER_TWO_SIZE, OUTPUT_LAYER_SIZE);
+        inputLayer = new NeuronLayer(INPUT_LAYER_SIZE, HIDDEN_LAYER_ONE_SIZE,Activation.Sigmoid);
+        hiddenLayers = new NeuronLayer[HIDDEN_LAYERS_COUNT]; //1 скрытый слой
+        for (int i = 0; i < HIDDEN_LAYERS_COUNT; i++) {
+            hiddenLayers[i] = new NeuronLayer(HIDDEN_LAYER_ONE_SIZE, OUTPUT_LAYER_SIZE, Activation.Sigmoid);
+        }
         this.outputLayer = new NeuronLayer(OUTPUT_LAYER_SIZE, 0);
+    }
+
+    public NeuralNetwork(int inputLayerSize, int[] hiddenLayersSize, int outputLayerSize ) {
+        if (inputLayerSize <= 0){
+            throw new IllegalArgumentException("Illegal Input Layer capacity: "+inputLayerSize);
+        }
+        if (outputLayerSize <= 0){
+            throw new IllegalArgumentException("Illegal Output Layer capacity: "+outputLayerSize);
+        }
+        int hiddenLayersCnt = hiddenLayersSize.length;
+        if (hiddenLayersCnt <= 0) {
+            throw new IllegalArgumentException("Illegal Hidden Layers count: "+hiddenLayersCnt);
+        } else {
+            for (int i = 0; i < hiddenLayersCnt; i++) {
+                if (hiddenLayersSize[i] <= 0){
+                    int layerPosition = i + 1;
+                    throw new IllegalArgumentException("Illegal Hidden Layer "+layerPosition+" capacity: "+hiddenLayersSize[i]);
+                }
+            }
+        }
+        hiddenLayers = new NeuronLayer[hiddenLayersCnt];
+        inputLayer = new NeuronLayer(inputLayerSize, hiddenLayersSize[0], Activation.Sigmoid);
+        for (int i = 0; i < hiddenLayersCnt-1; i++) {
+            hiddenLayers[i] = new NeuronLayer(hiddenLayersSize[i], hiddenLayersSize[i+1], Activation.Sigmoid);
+        }
+        int lastHiddenLayerPos = hiddenLayersCnt-1;
+        hiddenLayers[lastHiddenLayerPos] = new NeuronLayer(hiddenLayersSize[lastHiddenLayerPos], outputLayerSize, Activation.Sigmoid);
+        outputLayer = new NeuronLayer(outputLayerSize, 0, Activation.Sigmoid);
+    }
+
+    public NeuralNetwork(CostFunction costFunction) {
+        this();
+        this.costFunction = costFunction;
+    }
+
+    public NeuralNetwork(int inputLayerSize, int[] hiddenLayersSize, int outputLayerSize, CostFunction costFunction) {
+        this(inputLayerSize,hiddenLayersSize,outputLayerSize);
+        this.costFunction = costFunction;
     }
 
     //Mini-Batch Gradient Descent
@@ -48,62 +89,62 @@ public class NeuralNetwork {
         double[][] input2HiddenOneWeightsDeltasSum = new double[INPUT_LAYER_SIZE][HIDDEN_LAYER_ONE_SIZE];
         double[] input2HiddenOneBiasDeltasSum = new double[HIDDEN_LAYER_ONE_SIZE];
         double totalBatchMSE = 0;
-        for (Number number : batch) {
-            feedForward(number);
-            totalBatchMSE += getMSE(number);
-            //посчитаем ошибки выходного и скрытого слоев
-            double[] outputsError = calcOutputLayerError(number); //ошибка выходного слоя
-            double[] hiddenLayerTwoError = calcHiddenLayerTwoDelta(outputsError);
-            double[] hiddenLayerOneError = calcHiddenLayerOneDelta(hiddenLayerTwoError);
-
-            //подсчитаем градиент изменения весов 2-го скрытого слоя
-            double[][] hiddenTwo2OutDeltas = getHiddenLayerTwo2OutLayerWeightsDeltas(outputsError);
-            double[] hiddenTwo2OutBiasDeltas = getHiddenLayerTwo2OutLayerBiasDeltas(outputsError);
-            hiddenTwo2OutDeltasSum = sumDeltaW(hiddenTwo2OutDeltasSum, hiddenTwo2OutDeltas, HIDDEN_LAYER_TWO_SIZE, OUTPUT_LAYER_SIZE);
-            hiddenTwo2OutBiasDeltasSum = sumDeltaBias(hiddenTwo2OutBiasDeltasSum, hiddenTwo2OutBiasDeltas, OUTPUT_LAYER_SIZE);
-
-            //подсчитаем градиент изменения весов 1-го скрытого слоя
-            double[][] hiddenOne2HiddenTwoDeltas = getHiddenLayerOne2HiddenLayerTwoWeightsDeltas(hiddenLayerTwoError);
-            double[] hiddenOne2HiddenTwoBiasDeltas = getHiddenLayerOne2HiddenLayerTwoBiasDeltas(hiddenLayerTwoError);
-            hiddenOne2hiddenTwoDeltasSum = sumDeltaW(hiddenOne2hiddenTwoDeltasSum, hiddenOne2HiddenTwoDeltas, HIDDEN_LAYER_ONE_SIZE, HIDDEN_LAYER_TWO_SIZE);
-            hiddenOne2hiddenTwoBiasDeltasSum = sumDeltaBias(hiddenOne2hiddenTwoBiasDeltasSum, hiddenOne2HiddenTwoBiasDeltas, HIDDEN_LAYER_TWO_SIZE);
-
-            //подсчитаем градиент изменения весов входного слоя
-            double[][] input2HiddenOneWeightsDeltas = getInputLayer2HiddenLayerOneWeightsDeltas(hiddenLayerOneError);
-            double[] input2HiddenOneBiasDeltas = getInputLayer2HiddenLayerOneBiasDeltas(hiddenLayerOneError);
-            input2HiddenOneWeightsDeltasSum = sumDeltaW(input2HiddenOneWeightsDeltasSum, input2HiddenOneWeightsDeltas, INPUT_LAYER_SIZE, HIDDEN_LAYER_ONE_SIZE);
-            input2HiddenOneBiasDeltasSum = sumDeltaBias(input2HiddenOneBiasDeltasSum, input2HiddenOneBiasDeltas, HIDDEN_LAYER_ONE_SIZE);
-        }
-        //усредняем веса 2-го скрытого слоя
-        for (int i = 0; i < HIDDEN_LAYER_TWO_SIZE; i++) {
-            for (int j = 0; j < OUTPUT_LAYER_SIZE; j++) {
-                hiddenTwo2OutDeltasSum[i][j] *= 1.0 / batch.length;
-            }
-        }
-        for (int i = 0; i < OUTPUT_LAYER_SIZE; i++) {
-            hiddenTwo2OutBiasDeltasSum[i] *= 1.0 / batch.length;
-        }
-        //усредняем веса 1-го скрытого слоя
-        for (int i = 0; i < HIDDEN_LAYER_ONE_SIZE; i++) {
-            for (int j = 0; j < HIDDEN_LAYER_TWO_SIZE; j++) {
-                hiddenOne2hiddenTwoDeltasSum[i][j] *= 1.0 / batch.length;
-            }
-        }
-        for (int i = 0; i < HIDDEN_LAYER_TWO_SIZE; i++) {
-            hiddenOne2hiddenTwoBiasDeltasSum[i] *= 1.0 / batch.length;
-        }
-        //усредняем веса входного слоя
-        for (int i = 0; i < INPUT_LAYER_SIZE; i++) {
-            for (int j = 0; j < HIDDEN_LAYER_TWO_SIZE; j++) {
-                input2HiddenOneWeightsDeltasSum[i][j] *= 1.0 / batch.length;
-            }
-        }
-        for (int i = 0; i < HIDDEN_LAYER_TWO_SIZE; i++) {
-            input2HiddenOneBiasDeltasSum[i] *= 1.0 / batch.length;
-        }
-        updateHiddenLayerTwoWeights(hiddenTwo2OutDeltasSum, hiddenTwo2OutBiasDeltasSum);
-        updateHiddenLayerOneWeights(hiddenOne2hiddenTwoDeltasSum, hiddenOne2hiddenTwoBiasDeltasSum);
-        updateInputLayerWeights(input2HiddenOneWeightsDeltasSum,input2HiddenOneBiasDeltasSum);
+//        for (Number number : batch) {
+//            feedForward(number);
+//            totalBatchMSE += getMSE(number);
+//            //посчитаем ошибки выходного и скрытого слоев
+//            double[] outputsError = calcOutputLayerError(number); //ошибка выходного слоя
+//            double[] hiddenLayerTwoError = calcHiddenLayerTwoDelta(outputsError);
+//            double[] hiddenLayerOneError = calcHiddenLayerOneDelta(hiddenLayerTwoError);
+//
+//            //подсчитаем градиент изменения весов 2-го скрытого слоя
+//            double[][] hiddenTwo2OutDeltas = getHiddenLayerTwo2OutLayerWeightsDeltas(outputsError);
+//            double[] hiddenTwo2OutBiasDeltas = getHiddenLayerTwo2OutLayerBiasDeltas(outputsError);
+//            hiddenTwo2OutDeltasSum = sumDeltaW(hiddenTwo2OutDeltasSum, hiddenTwo2OutDeltas, HIDDEN_LAYER_TWO_SIZE, OUTPUT_LAYER_SIZE);
+//            hiddenTwo2OutBiasDeltasSum = sumDeltaBias(hiddenTwo2OutBiasDeltasSum, hiddenTwo2OutBiasDeltas, OUTPUT_LAYER_SIZE);
+//
+//            //подсчитаем градиент изменения весов 1-го скрытого слоя
+//            double[][] hiddenOne2HiddenTwoDeltas = getHiddenLayerOne2HiddenLayerTwoWeightsDeltas(hiddenLayerTwoError);
+//            double[] hiddenOne2HiddenTwoBiasDeltas = getHiddenLayerOne2HiddenLayerTwoBiasDeltas(hiddenLayerTwoError);
+//            hiddenOne2hiddenTwoDeltasSum = sumDeltaW(hiddenOne2hiddenTwoDeltasSum, hiddenOne2HiddenTwoDeltas, HIDDEN_LAYER_ONE_SIZE, HIDDEN_LAYER_TWO_SIZE);
+//            hiddenOne2hiddenTwoBiasDeltasSum = sumDeltaBias(hiddenOne2hiddenTwoBiasDeltasSum, hiddenOne2HiddenTwoBiasDeltas, HIDDEN_LAYER_TWO_SIZE);
+//
+//            //подсчитаем градиент изменения весов входного слоя
+//            double[][] input2HiddenOneWeightsDeltas = getInputLayer2HiddenLayerOneWeightsDeltas(hiddenLayerOneError);
+//            double[] input2HiddenOneBiasDeltas = getInputLayer2HiddenLayerOneBiasDeltas(hiddenLayerOneError);
+//            input2HiddenOneWeightsDeltasSum = sumDeltaW(input2HiddenOneWeightsDeltasSum, input2HiddenOneWeightsDeltas, INPUT_LAYER_SIZE, HIDDEN_LAYER_ONE_SIZE);
+//            input2HiddenOneBiasDeltasSum = sumDeltaBias(input2HiddenOneBiasDeltasSum, input2HiddenOneBiasDeltas, HIDDEN_LAYER_ONE_SIZE);
+//        }
+//        //усредняем веса 2-го скрытого слоя
+//        for (int i = 0; i < HIDDEN_LAYER_TWO_SIZE; i++) {
+//            for (int j = 0; j < OUTPUT_LAYER_SIZE; j++) {
+//                hiddenTwo2OutDeltasSum[i][j] *= 1.0 / batch.length;
+//            }
+//        }
+//        for (int i = 0; i < OUTPUT_LAYER_SIZE; i++) {
+//            hiddenTwo2OutBiasDeltasSum[i] *= 1.0 / batch.length;
+//        }
+//        //усредняем веса 1-го скрытого слоя
+//        for (int i = 0; i < HIDDEN_LAYER_ONE_SIZE; i++) {
+//            for (int j = 0; j < HIDDEN_LAYER_TWO_SIZE; j++) {
+//                hiddenOne2hiddenTwoDeltasSum[i][j] *= 1.0 / batch.length;
+//            }
+//        }
+//        for (int i = 0; i < HIDDEN_LAYER_TWO_SIZE; i++) {
+//            hiddenOne2hiddenTwoBiasDeltasSum[i] *= 1.0 / batch.length;
+//        }
+//        //усредняем веса входного слоя
+//        for (int i = 0; i < INPUT_LAYER_SIZE; i++) {
+//            for (int j = 0; j < HIDDEN_LAYER_TWO_SIZE; j++) {
+//                input2HiddenOneWeightsDeltasSum[i][j] *= 1.0 / batch.length;
+//            }
+//        }
+//        for (int i = 0; i < HIDDEN_LAYER_TWO_SIZE; i++) {
+//            input2HiddenOneBiasDeltasSum[i] *= 1.0 / batch.length;
+//        }
+//        updateHiddenLayerTwoWeights(hiddenTwo2OutDeltasSum, hiddenTwo2OutBiasDeltasSum);
+//        updateHiddenLayerOneWeights(hiddenOne2hiddenTwoDeltasSum, hiddenOne2hiddenTwoBiasDeltasSum);
+//        updateInputLayerWeights(input2HiddenOneWeightsDeltasSum,input2HiddenOneBiasDeltasSum);
         return totalBatchMSE;
     }
 
@@ -126,9 +167,18 @@ public class NeuralNetwork {
     public void feedForward(Number number) {
         double[] pixels = number.getPixels();
         inputLayer.setNeurons(pixels);
-        hiddenLayerOne.setNeurons(inputLayer.calculateOutput());
-        hiddenLayerTwo.setNeurons(hiddenLayerOne.calculateOutput());
-        outputLayer.setNeurons(hiddenLayerTwo.calculateOutput());
+        NeuronLayer firstHiddenLayer = hiddenLayers[0];
+        firstHiddenLayer.setNeurons(inputLayer.calculateOutput());
+        if (hiddenLayers.length > 1){
+            int hiddenLayersToFeed = hiddenLayers.length - 2;
+            for (int i = 0; i <= hiddenLayersToFeed; i++) {
+                NeuronLayer currentHiddenLayer = hiddenLayers[i];
+                NeuronLayer nextHiddenLayer = hiddenLayers[i + 1];
+                nextHiddenLayer.setNeurons(currentHiddenLayer.calculateOutput());
+            }
+        }
+        NeuronLayer lastHiddenLayer = hiddenLayers[hiddenLayers.length-1];
+        outputLayer.setNeurons(lastHiddenLayer.calculateOutput());
     }
 
     public double[] getOutput() {
@@ -136,177 +186,93 @@ public class NeuralNetwork {
                 .mapToDouble(Neuron::getValue).toArray();
     }
 
-    //Cost function: Mean square error, C = 1/n * ∑(y−exp)^2
     public double getMSE(Number number) {
         double[] idealOut = ideals[number.getValue()];
         double[] currentOutput = getOutput();
-        double total = 0;
-        for (int i = 0; i < OUTPUT_LAYER_SIZE; i++) {
-            total += Math.pow((idealOut[i] - currentOutput[i]), 2);
-        }
-        return total / OUTPUT_LAYER_SIZE;
-    }
-
-    //производная от функции активации(сигмоида)
-    private double sigmDx(double x) {
-        return x * (1 - x);
+        return costFunction.apply(idealOut, currentOutput);
     }
 
     //ошибка значений нейронов выходного слоя
-    private double[] calcOutputLayerError(Number number) {
+    private void calcOutputLayerError(Number number) {
         double[] deltas = new double[OUTPUT_LAYER_SIZE];
         double[] idealOut = ideals[number.getValue()];
         double[] outputs = getOutput();
+        double[] costFunctionDerivative = costFunction.applyDerivative(idealOut,outputs);
         for (int i = 0; i < OUTPUT_LAYER_SIZE; i++) {
-            double error = idealOut[i] - outputs[i];
-            deltas[i] = 2 * error * sigmDx(outputs[i]);
-//            double mseDerivative = 2 * (outputs[i] - idealOut[i]);
-//            deltas[i] = mseDerivative * sigmDx(outputs[i]);
+            deltas[i] = costFunctionDerivative[i] * outputLayer.getActivation().applyDerivative(outputs[i]);
         }
-        return deltas;
+        outputLayer.setDeltas(deltas);
     }
 
-    //распространяем ошибку выходного слоя на 2-й скрытый слой
-    private double[] calcHiddenLayerTwoDelta(double[] outputsDelta) {
-        double[] deltas = new double[HIDDEN_LAYER_TWO_SIZE];
-        Neuron[] output = hiddenLayerTwo.getNeurons();
-        double[][] weights = hiddenLayerTwo.getWeights();
-        for (int i = 0; i < HIDDEN_LAYER_TWO_SIZE; i++) {
+    //распространяем ошибку выходного слоя на скрытые слои
+    private void calcHiddenLayerDelta(NeuronLayer currentLayer, NeuronLayer previousLayer) {
+        int currentLayerSize = currentLayer.getSize();
+        double[] deltas = new double[currentLayerSize];
+        Neuron[] output = currentLayer.getNeurons();
+        double[][] weights = currentLayer.getWeights();
+        double[] previousLayerDelta = previousLayer.getDeltas();
+        for (int i = 0; i < currentLayerSize; i++) {
             double error = 0;
-            double[] hiddenNeuronWeights = weights[i];
-            for (int j = 0; j < OUTPUT_LAYER_SIZE; j++) {
-                error += outputsDelta[j] * hiddenNeuronWeights[j];
+            double[] neuronWeights = weights[i];
+            for (int j = 0; j < previousLayerDelta.length; j++) {
+                error += previousLayerDelta[j] * neuronWeights[j];
             }
-            deltas[i] = error * sigmDx(output[i].getValue());
+            deltas[i] = error * currentLayer.getActivation().applyDerivative(output[i].getValue());
         }
-        return deltas;
-    }
-
-    //распространяем ошибку выходного слоя на 1-й скрытый слой
-    private double[] calcHiddenLayerOneDelta(double[] outputsDelta) {
-        double[] deltas = new double[HIDDEN_LAYER_ONE_SIZE];
-        Neuron[] output = hiddenLayerOne.getNeurons();
-        double[][] weights = hiddenLayerOne.getWeights();
-        for (int i = 0; i < HIDDEN_LAYER_ONE_SIZE; i++) {
-            double error = 0;
-            double[] hiddenNeuronWeights = weights[i];
-            for (int j = 0; j < OUTPUT_LAYER_SIZE; j++) {
-                error += outputsDelta[j] * hiddenNeuronWeights[j];
-            }
-            deltas[i] = error * sigmDx(output[i].getValue());
-        }
-        return deltas;
-    }
-
-    private void updateInputLayerWeights(double[][] deltas, double[] biasDelta) {
-        inputLayer.updateWeights(deltas);
-        inputLayer.updateBias(biasDelta);
-    }
-
-    private void updateHiddenLayerTwoWeights(double[][] deltas, double[] biasDelta) {
-        hiddenLayerTwo.updateWeights(deltas);
-        hiddenLayerTwo.updateBias(biasDelta);
-    }
-
-    private void updateHiddenLayerOneWeights(double[][] deltas, double[] biasDelta) {
-        hiddenLayerOne.updateWeights(deltas);
-        hiddenLayerOne.updateBias(biasDelta);
+        currentLayer.setDeltas(deltas);
     }
 
     //    изменение веса синапса равно коэффициенту скорости обучения, умноженному на градиент этого веса,
     //    прибавить момент умноженный на предыдущее изменение этого веса (на 1-ой итерации равно 0)
-    private double[][] getHiddenLayerTwo2OutLayerWeightsDeltas(double[] outputsError){
-        double[][] deltas = new double[HIDDEN_LAYER_TWO_SIZE][OUTPUT_LAYER_SIZE];
-        Neuron[] neurons = hiddenLayerTwo.getNeurons();
-        double[][] prevWeightDeltas = hiddenLayerTwo.getWeightDeltas();
-        for (int i = 0; i < HIDDEN_LAYER_TWO_SIZE; i++) {
-            for (int j = 0; j < OUTPUT_LAYER_SIZE; j++) {
-                double gradient = neurons[i].getValue() * outputsError[j];
-                deltas[i][j] = (gradient * LEARNING_RATE) + (MOMENTUM * prevWeightDeltas[i][j]);
+    private void updateWeightsAndBiases(NeuronLayer currentLayer, NeuronLayer nextLayer){
+        int size = currentLayer.getSize();
+        int nextSize = currentLayer.getNextSize();
+        double[][] currentWeightsDelta = new double[size][nextSize];
+        double[][] previousWeightsDelta = currentLayer.getWeightDeltas();
+        double[] currentBiasDelta = new double[nextSize];
+        double[] previousBiasDelta = currentLayer.getBiasDeltas();
+        Neuron[] neurons = currentLayer.getNeurons();
+        double[] nextLayerError = nextLayer.getDeltas();
+        for (int i = 0; i < size; i++) {
+            for (int j = 0; j < nextSize; j++) {
+                double gradient = neurons[i].getValue() * nextLayerError[j];
+                currentWeightsDelta[i][j] = (gradient * LEARNING_RATE) + (MOMENTUM * previousWeightsDelta[i][j]);
             }
         }
-        return deltas;
-    }
-
-    private double[][] getHiddenLayerOne2HiddenLayerTwoWeightsDeltas(double[] hiddenLayerTwoDelta){
-        double[][] deltas = new double[HIDDEN_LAYER_ONE_SIZE][HIDDEN_LAYER_TWO_SIZE];
-        Neuron[] neurons = hiddenLayerOne.getNeurons();
-        double[][] prevWeightDeltas = hiddenLayerOne.getWeightDeltas();
-        for (int i = 0; i < HIDDEN_LAYER_ONE_SIZE; i++) {
-            for (int j = 0; j < HIDDEN_LAYER_TWO_SIZE; j++) {
-                double gradient = neurons[i].getValue() * hiddenLayerTwoDelta[j];
-                deltas[i][j] = (gradient * LEARNING_RATE) + (MOMENTUM * prevWeightDeltas[i][j]);
-            }
+        for (int i = 0; i < nextSize; i++) {
+            currentBiasDelta[i] = (nextLayerError[i] * LEARNING_RATE) + (MOMENTUM * previousBiasDelta[i]);
         }
-        return deltas;
-    }
-
-    private double[][] getInputLayer2HiddenLayerOneWeightsDeltas(double[] hiddenL1WeightsDelta) {
-        double[][] deltas = new double[INPUT_LAYER_SIZE][HIDDEN_LAYER_ONE_SIZE];
-        Neuron[] neurons = inputLayer.getNeurons();
-        double[][] prevWeightDeltas = inputLayer.getWeightDeltas();
-        for (int i = 0; i < INPUT_LAYER_SIZE; i++) {
-            for (int j = 0; j < HIDDEN_LAYER_ONE_SIZE; j++) {
-                double gradient = neurons[i].getValue() * hiddenL1WeightsDelta[j];
-                deltas[i][j] = (gradient * LEARNING_RATE) + (MOMENTUM * prevWeightDeltas[i][j]);
-            }
-        }
-        return deltas;
-    }
-
-    private double[] getHiddenLayerTwo2OutLayerBiasDeltas(double[] outputsDelta){
-        double[] biasDelta = new double[OUTPUT_LAYER_SIZE];
-        double[] prevBiasDeltas = hiddenLayerTwo.getBiasDeltas();
-        for (int i = 0; i < HIDDEN_LAYER_TWO_SIZE; i++) {
-            for (int j = 0; j < OUTPUT_LAYER_SIZE; j++) {
-                biasDelta[j] = (outputsDelta[j] * LEARNING_RATE) + (MOMENTUM * prevBiasDeltas[j]);
-            }
-        }
-        return biasDelta;
-    }
-
-    private double[] getHiddenLayerOne2HiddenLayerTwoBiasDeltas(double[] hiddenLayerTwoDelta){
-        double[] biasDelta = new double[HIDDEN_LAYER_TWO_SIZE];
-        double[] prevBiasDeltas = hiddenLayerOne.getBiasDeltas();
-        for (int i = 0; i < HIDDEN_LAYER_ONE_SIZE; i++) {
-            for (int j = 0; j < HIDDEN_LAYER_TWO_SIZE; j++) {
-                biasDelta[j] = (hiddenLayerTwoDelta[j] * LEARNING_RATE) + (MOMENTUM * prevBiasDeltas[j]);
-            }
-        }
-        return biasDelta;
-    }
-
-    private double[] getInputLayer2HiddenLayerOneBiasDeltas(double[] hiddenL1WeightsDelta) {
-        double[] biasDelta = new double[HIDDEN_LAYER_ONE_SIZE];
-        double[] prevBiasDeltas = inputLayer.getBiasDeltas();
-        for (int i = 0; i < INPUT_LAYER_SIZE; i++) {
-            for (int j = 0; j < HIDDEN_LAYER_ONE_SIZE; j++) {
-                biasDelta[j] = (hiddenL1WeightsDelta[j] * LEARNING_RATE) + (MOMENTUM * prevBiasDeltas[j]);
-            }
-        }
-        return biasDelta;
+        currentLayer.updateWeights(currentWeightsDelta);
+        currentLayer.updateBias(currentBiasDelta);
     }
 
     //Stochastic Gradient Descent
     //Веса обновляются в real-time, сразу после того как посчитано DeltaW
     public void backpropagation(Number number) {
-        double[] outputsError = calcOutputLayerError(number); //ошибка выходного слоя
-        double[] hiddenLayerTwoError = calcHiddenLayerTwoDelta(outputsError); //ошибка 2-го скрытого слоя
-        double[] hiddenLayerOneError = calcHiddenLayerOneDelta(hiddenLayerTwoError); //ошибка 1-го скрытого слоя
+        calcOutputLayerError(number); //ошибка выходного слоя
+        //распространяем ошибку на скрытые слои
+        NeuronLayer lastHiddenLayer = hiddenLayers[hiddenLayers.length-1];
+        calcHiddenLayerDelta(lastHiddenLayer, outputLayer);
+        if (hiddenLayers.length > 1) {
+            int hiddenLayersToPropagate = hiddenLayers.length - 2;
+            for (int i = hiddenLayersToPropagate; i >= 0; i--) {
+                NeuronLayer currentHiddenLayer = hiddenLayers[i];
+                NeuronLayer previousHiddenLayer = hiddenLayers[i + 1];
+                calcHiddenLayerDelta(currentHiddenLayer, previousHiddenLayer);
+            }
+        }
 
-        //подсчитаем градиент изменения весов 2-го скрытого слоя и сразу же обновим веса
-        double[][] hiddenTwo2OutDeltas = getHiddenLayerTwo2OutLayerWeightsDeltas(outputsError);
-        double[] hiddenTwo2OutBiasDeltas = getHiddenLayerTwo2OutLayerBiasDeltas(outputsError);
-        updateHiddenLayerTwoWeights(hiddenTwo2OutDeltas, hiddenTwo2OutBiasDeltas);
-
-        //подсчитаем градиент изменения весов 1-го скрытого слоя и сразу же обновим веса
-        double[][] hiddenOne2HiddenTwoDeltas = getHiddenLayerOne2HiddenLayerTwoWeightsDeltas(hiddenLayerTwoError);
-        double[] hiddenOne2HiddenTwoBiasDeltas = getHiddenLayerOne2HiddenLayerTwoBiasDeltas(hiddenLayerTwoError);
-        updateHiddenLayerOneWeights(hiddenOne2HiddenTwoDeltas, hiddenOne2HiddenTwoBiasDeltas);
-
-        //подсчитаем градиент изменения весов входного слоя и сразу же обновим веса
-        double[][] input2HiddenOneWeightsDeltas = getInputLayer2HiddenLayerOneWeightsDeltas(hiddenLayerOneError);
-        double[] input2HiddenOneBiasDeltas = getInputLayer2HiddenLayerOneBiasDeltas(hiddenLayerOneError);
-        updateInputLayerWeights(input2HiddenOneWeightsDeltas, input2HiddenOneBiasDeltas);
+        //подсчитаем градиент изменения весов скрытого слоя и сразу же обновим веса
+        NeuronLayer firstHiddenLayer = hiddenLayers[0];
+        updateWeightsAndBiases(inputLayer, firstHiddenLayer);
+        if (hiddenLayers.length > 1) {
+            int hiddenLayersToUpdate = hiddenLayers.length - 2;
+            for (int i = 0; i <= hiddenLayersToUpdate; i++) {
+                NeuronLayer currentHiddenLayer = hiddenLayers[i];
+                NeuronLayer nextHiddenLayer = hiddenLayers[i + 1];
+                updateWeightsAndBiases(currentHiddenLayer, nextHiddenLayer);
+            }
+        }
+        updateWeightsAndBiases(lastHiddenLayer, outputLayer);
     }
 }
