@@ -34,10 +34,11 @@ public class NeuralNetwork {
     //обновляем веса входного и скрытого слоев на сумму DeltaW всех весов в пакете.
     public double trainBatch(Number[] numbers, double[][] expectedOut) {
         double totalBatchError = 0;
-        for (Number number : numbers) {
+        for (int n = 0; n < numbers.length; n++) {
+            Number number = numbers[n];
             feedForward(number);
-            totalBatchError += getCost(expectedOut[number.getValue()]);
-            double[] expected = expectedOut[number.getValue()];
+            totalBatchError += getCost(expectedOut[n]);
+            double[] expected = expectedOut[n];
             calcOutputLayerError(expected); //ошибка выходного слоя
             //распространяем ошибку на скрытые слои
             NeuronLayer lastHiddenLayer = hiddenLayers[hiddenLayers.length - 1];
@@ -53,28 +54,19 @@ public class NeuralNetwork {
 
             //подсчитаем градиент изменения весов скрытого слоя
             NeuronLayer firstHiddenLayer = hiddenLayers[0];
-            updateWeightsAndBiases(inputLayer, firstHiddenLayer);
+            calcWeightsAndBiasesGradient(inputLayer, firstHiddenLayer);
             if (hiddenLayers.length > 1) {
                 int hiddenLayersToUpdate = hiddenLayers.length - 2;
                 for (int i = 0; i <= hiddenLayersToUpdate; i++) {
                     NeuronLayer currentHiddenLayer = hiddenLayers[i];
                     NeuronLayer nextHiddenLayer = hiddenLayers[i + 1];
-                    updateWeightsAndBiases(currentHiddenLayer, nextHiddenLayer);
+                    calcWeightsAndBiasesGradient(currentHiddenLayer, nextHiddenLayer);
                 }
             }
-            updateWeightsAndBiases(lastHiddenLayer, outputLayer);
+            calcWeightsAndBiasesGradient(lastHiddenLayer, outputLayer);
         }
         //обновим веса
-        inputLayer.update();
-        if (hiddenLayers.length > 1) {
-            int hiddenLayersToUpdate = hiddenLayers.length - 2;
-            for (int i = 0; i <= hiddenLayersToUpdate; i++) {
-                NeuronLayer currentHiddenLayer = hiddenLayers[i];
-                currentHiddenLayer.update();
-            }
-        }
-        NeuronLayer lastHiddenLayer = hiddenLayers[hiddenLayers.length - 1];
-        lastHiddenLayer.update();
+        updateAllWeightsAndBiases();
         return totalBatchError;
     }
 
@@ -147,7 +139,7 @@ public class NeuralNetwork {
 
     //    изменение веса синапса равно коэффициенту скорости обучения, умноженному на градиент этого веса,
     //    прибавить момент умноженный на предыдущее изменение этого веса (на 1-ой итерации равно 0)
-    private void updateWeightsAndBiases(NeuronLayer currentLayer, NeuronLayer nextLayer) {
+    private void calcWeightsAndBiasesGradient(NeuronLayer currentLayer, NeuronLayer nextLayer) {
         int size = currentLayer.getSize();
         int nextSize = currentLayer.getNextSize();
         double[][] currentWeightsDelta = new double[size][nextSize];
@@ -188,18 +180,29 @@ public class NeuralNetwork {
 
         //подсчитаем градиент изменения весов скрытого слоя и сразу же обновим веса
         NeuronLayer firstHiddenLayer = hiddenLayers[0];
-        updateWeightsAndBiases(inputLayer, firstHiddenLayer);
-        inputLayer.update();
+        calcWeightsAndBiasesGradient(inputLayer, firstHiddenLayer);
         if (hiddenLayers.length > 1) {
             int hiddenLayersToUpdate = hiddenLayers.length - 2;
             for (int i = 0; i <= hiddenLayersToUpdate; i++) {
                 NeuronLayer currentHiddenLayer = hiddenLayers[i];
                 NeuronLayer nextHiddenLayer = hiddenLayers[i + 1];
-                updateWeightsAndBiases(currentHiddenLayer, nextHiddenLayer);
+                calcWeightsAndBiasesGradient(currentHiddenLayer, nextHiddenLayer);
+            }
+        }
+        calcWeightsAndBiasesGradient(lastHiddenLayer, outputLayer);
+        updateAllWeightsAndBiases();
+    }
+
+    private void updateAllWeightsAndBiases() {
+        inputLayer.update();
+        if (hiddenLayers.length > 1) {
+            int hiddenLayersToUpdate = hiddenLayers.length - 2;
+            for (int i = 0; i <= hiddenLayersToUpdate; i++) {
+                NeuronLayer currentHiddenLayer = hiddenLayers[i];
                 currentHiddenLayer.update();
             }
         }
-        updateWeightsAndBiases(lastHiddenLayer, outputLayer);
+        NeuronLayer lastHiddenLayer = hiddenLayers[hiddenLayers.length - 1];
         lastHiddenLayer.update();
     }
 }

@@ -8,6 +8,7 @@ import java.util.stream.Collectors;
 
 public class Main {
     private static File[] data;
+    private static List<Number> numbers;
     private static final double[][] numbersToTrain = {
             {0, 0, 0, 0}, //0
             {0, 0, 0, 1}, //1
@@ -53,23 +54,19 @@ public class Main {
     }
 
     private static void testMNISTStochasticGD() {
-        NeuronLayer input = new NeuronLayer(784, 64, Activation.Sigmoid, Initializer.XAVIER_NORMAL);
+        NeuronLayer input = new NeuronLayer(784, 800, Activation.Sigmoid, Initializer.XAVIER_NORMAL);
         NeuralNetwork neuralNetwork = NeuralNetworkBuilder.neuralNetworkBuilder()
                 .withInputLayer(input)
-                .addHiddenLayer(new NeuronLayer(64, 64, Activation.Sigmoid, Initializer.XAVIER_NORMAL))
-                .addHiddenLayer(new NeuronLayer(64, 10, Activation.Sigmoid, Initializer.XAVIER_NORMAL))
+                .addHiddenLayer(new NeuronLayer(800, 10, Activation.Sigmoid, Initializer.XAVIER_NORMAL))
                 .withOutputLayer(new NeuronLayer(10, 0, Activation.Softmax))
                 .build();
         neuralNetwork.setCostFunction(CostFunction.CROSS_ENTROPY);
         neuralNetwork.setOptimizer(new Optimizer.GradientDescent(0.01));
         neuralNetwork.setMomentum(0.7);
-        List<Number> numberList = Arrays.stream(data).parallel().map(Main::fileToNumber)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toList());
-        Collections.shuffle(numberList);
+        Collections.shuffle(numbers);
         for (int i = 0; i < 3; i++) {
             int epoch = 0;
-            for (Number number : numberList) {
+            for (Number number : numbers) {
                 epoch++;
                 double[] idealOut = ideals[number.getValue()];
                 neuralNetwork.feedForward(number);
@@ -80,54 +77,47 @@ public class Main {
                 }
             }
         }
-        testMNISTNumberRecognition(neuralNetwork, numberList);
+        testMNISTNumberRecognition(neuralNetwork);
     }
 
     private static void trainMiniBatchGD(int batchSize) {
-        NeuronLayer input = new NeuronLayer(784, 64, Activation.Sigmoid, Initializer.XAVIER_NORMAL);
+        NeuronLayer input = new NeuronLayer(784, 800, Activation.Sigmoid, Initializer.XAVIER_NORMAL);
         NeuralNetwork neuralNetwork = NeuralNetworkBuilder.neuralNetworkBuilder()
                 .withInputLayer(input)
-                .addHiddenLayer(new NeuronLayer(64, 38, Activation.Sigmoid, Initializer.XAVIER_NORMAL))
-                .addHiddenLayer(new NeuronLayer(38, 10, Activation.Sigmoid, Initializer.XAVIER_NORMAL))
-                .withOutputLayer(new NeuronLayer(10, 0, Activation.Sigmoid, Initializer.XAVIER_NORMAL))
+                .addHiddenLayer(new NeuronLayer(800, 10, Activation.Sigmoid, Initializer.XAVIER_NORMAL))
+                .withOutputLayer(new NeuronLayer(10, 0, Activation.Softmax, Initializer.XAVIER_NORMAL))
                 .build();
-        neuralNetwork.setCostFunction(CostFunction.QUADRATIC);
+        neuralNetwork.setCostFunction(CostFunction.CROSS_ENTROPY);
         neuralNetwork.setOptimizer(new Optimizer.GradientDescent(0.5));
-        neuralNetwork.setMomentum(0.9);
-        List<Number> numberList = Arrays.stream(data).parallel().map(Main::fileToNumber)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toList());
-        Collections.shuffle(numberList);
+        neuralNetwork.setMomentum(0.7);
+        Collections.shuffle(numbers);
 
-        int batchCount = numberList.size() / batchSize;
+        int batchCount = numbers.size() / batchSize;
         double[][] expectedOutputs = new double[batchSize][10];
         int epoch = 0;
-        double batchError = 0;
+        double batchError;
         do {
             epoch++;
             for (int i = 0; i < batchCount; i++) {
                 int fromIndex = i * batchSize;
-                int toIndex = Math.min(numberList.size(), (i + 1) * batchSize);
-                List<Number> batch = numberList.subList(fromIndex, toIndex);
+                int toIndex = Math.min(numbers.size(), (i + 1) * batchSize);
+                List<Number> batch = numbers.subList(fromIndex, toIndex);
                 for (int j = 0; j < batchSize; j++) {
                     expectedOutputs[j] = ideals[batch.get(j).getValue()];
                 }
                 double totalBatchError = neuralNetwork.trainBatch(batch.toArray(new Number[batchSize]), expectedOutputs);
                 batchError = totalBatchError / batchSize;
-                System.out.print("\rEpoch: " + epoch + " ERROR: " + batchError);
+                System.out.print("\rEpoch: " + epoch + " Batch: " + i + " of " + batchCount + " ERROR: " + totalBatchError + " AVG ERR: " + batchError);
             }
-            if (epoch % 5 == 0) {
-                if (batchError <= 0.1 || epoch > 100) break;
-            }
-        } while (true);
-        testMNISTNumberRecognition(neuralNetwork, numberList);
+        } while ( epoch <= 3);
+        testMNISTNumberRecognition(neuralNetwork);
     }
 
-    private static void testMNISTNumberRecognition(NeuralNetwork nn, List<Number> numberList) {
+    private static void testMNISTNumberRecognition(NeuralNetwork nn) {
         double overall = 0;
         Random random = new Random();
         for (int i = 0; i < 100; i++) {
-            Number testNumber = numberList.get(random.nextInt(numberList.size()));
+            Number testNumber = numbers.get(random.nextInt(numbers.size()));
             double[] expected = ideals[testNumber.getValue()];
             nn.feedForward(testNumber);
             double[] output = nn.getOutput();
@@ -323,18 +313,26 @@ public class Main {
         System.out.println("Overall score: " + overall / numbersToTrain.length);
     }
 
-    public static void main(String[] args) throws Exception {
+    private static void loadMNISTDB(){
+        data = new File("F:\\mnist\\data").listFiles();
+        if (data == null) System.exit(0);
+        numbers = Arrays.stream(data).parallel().map(Main::fileToNumber)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+    }
+
+    public static void main(String[] args) {
         System.out.println("Test 1");
         testNetworkStepByStep();
         System.out.println("Test 2");
         testNetwork();
         System.out.println("Test 3");
         testNetworkBatch();
-        data = new File("F:\\mnist\\data").listFiles();
-        if (data == null) return;
+
+        loadMNISTDB();
         System.out.println("Test MNIST 1");
         testMNISTStochasticGD();
-        //System.out.println("Test MNIST 2");
-        //trainMiniBatchGD(256);
+        System.out.println("Test MNIST 2");
+        trainMiniBatchGD(32);
     }
 }
