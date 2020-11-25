@@ -53,16 +53,16 @@ public class Main {
     }
 
     private static void testMNISTStochasticGD() {
-        NeuronLayer input = new NeuronLayer(784, 64, Activation.ReLU, Initializer.XAVIER_NORMAL);
+        NeuronLayer input = new NeuronLayer(784, 64, Activation.Sigmoid, Initializer.XAVIER_NORMAL);
         NeuralNetwork neuralNetwork = NeuralNetworkBuilder.neuralNetworkBuilder()
                 .withInputLayer(input)
-                .addHiddenLayer(new NeuronLayer(64, 64, Activation.ReLU, Initializer.XAVIER_NORMAL))
-                .addHiddenLayer(new NeuronLayer(64, 10, Activation.Softmax, Initializer.XAVIER_NORMAL))
-                .withOutputLayer(new NeuronLayer(10, 0))
+                .addHiddenLayer(new NeuronLayer(64, 64, Activation.Sigmoid, Initializer.XAVIER_NORMAL))
+                .addHiddenLayer(new NeuronLayer(64, 10, Activation.Sigmoid, Initializer.XAVIER_NORMAL))
+                .withOutputLayer(new NeuronLayer(10, 0, Activation.Softmax))
                 .build();
         neuralNetwork.setCostFunction(CostFunction.CROSS_ENTROPY);
-        neuralNetwork.setOptimizer(new Optimizer.GradientDescent(0.0001));
-        neuralNetwork.setMomentum(0.9);
+        neuralNetwork.setOptimizer(new Optimizer.GradientDescent(0.01));
+        neuralNetwork.setMomentum(0.7);
         List<Number> numberList = Arrays.stream(data).parallel().map(Main::fileToNumber)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toList());
@@ -159,18 +159,18 @@ public class Main {
                         {0.45, 0.55}//w6,w8
                 }
         };
-        NeuronLayer input = new NeuronLayer(2, 2, Activation.BentIdentity, Initializer.MANUAL);
+        NeuronLayer input = new NeuronLayer(2, 2, Activation.Sigmoid, Initializer.MANUAL);
         input.setWeights(initialweights[0]);
         input.withBias(0.35);
 
-        NeuronLayer hidden = new NeuronLayer(2, 2, Activation.BentIdentity, Initializer.MANUAL);
+        NeuronLayer hidden = new NeuronLayer(2, 2, Activation.Sigmoid, Initializer.MANUAL);
         hidden.setWeights(initialweights[1]);
         hidden.withBias(0.60);
 
         NeuralNetwork neuralNetwork = NeuralNetworkBuilder.neuralNetworkBuilder()
                 .withInputLayer(input)
                 .addHiddenLayer(hidden)
-                .withOutputLayer(new NeuronLayer(2, 0, Activation.BentIdentity, Initializer.MANUAL))
+                .withOutputLayer(new NeuronLayer(2, 0))
                 .build();
         neuralNetwork.setCostFunction(CostFunction.HALF_QUADRATIC);
 
@@ -199,16 +199,16 @@ public class Main {
     }
 
     private static void testNetwork() {
-        NeuronLayer input = new NeuronLayer(4, 6, Activation.ReLU, Initializer.XAVIER_NORMAL);
+        NeuronLayer input = new NeuronLayer(4, 6, Activation.Identity, Initializer.XAVIER_NORMAL);
         input.withBias(0.5);
 
-        NeuronLayer hidden = new NeuronLayer(6, 10, Activation.Softmax, Initializer.XAVIER_NORMAL);
+        NeuronLayer hidden = new NeuronLayer(6, 10, Activation.Sigmoid, Initializer.XAVIER_NORMAL);
         hidden.withBias(0.5);
 
         NeuralNetwork neuralNetwork = NeuralNetworkBuilder.neuralNetworkBuilder()
                 .withInputLayer(input)
                 .addHiddenLayer(hidden)
-                .withOutputLayer(new NeuronLayer(10, 0))
+                .withOutputLayer(new NeuronLayer(10, 0, Activation.Softmax))
                 .build();
         neuralNetwork.setCostFunction(CostFunction.CROSS_ENTROPY);
         neuralNetwork.setOptimizer(new Optimizer.GradientDescent(0.01));
@@ -264,20 +264,20 @@ public class Main {
     }
 
     private static void testNetworkBatch() {
-        NeuronLayer input = new NeuronLayer(4, 6, Activation.Leaky_ReLU, Initializer.XAVIER_NORMAL);
+        NeuronLayer input = new NeuronLayer(4, 6, Activation.Identity, Initializer.XAVIER_NORMAL);
         input.withBias(0.5);
 
-        NeuronLayer hidden = new NeuronLayer(6, 10, Activation.Softmax, Initializer.XAVIER_NORMAL);
+        NeuronLayer hidden = new NeuronLayer(6, 10, Activation.Sigmoid, Initializer.XAVIER_NORMAL);
         hidden.withBias(0.5);
 
         NeuralNetwork neuralNetwork = NeuralNetworkBuilder.neuralNetworkBuilder()
                 .withInputLayer(input)
                 .addHiddenLayer(hidden)
-                .withOutputLayer(new NeuronLayer(10, 0))
+                .withOutputLayer(new NeuronLayer(10, 0, Activation.Softmax))
                 .build();
         neuralNetwork.setCostFunction(CostFunction.CROSS_ENTROPY);
-        neuralNetwork.setOptimizer(new Optimizer.GradientDescent(0.1));
-        neuralNetwork.setMomentum(0.5);
+        neuralNetwork.setOptimizer(new Optimizer.GradientDescent(0.01));
+        neuralNetwork.setMomentum(0.7);
 
         Random random = new Random();
         int initialIdx = random.nextInt(numbersToTrain.length);
@@ -324,8 +324,8 @@ public class Main {
     }
 
     public static void main(String[] args) throws Exception {
-        //System.out.println("Test 1");
-        //testNetworkStepByStep();
+        System.out.println("Test 1");
+        testNetworkStepByStep();
         System.out.println("Test 2");
         testNetwork();
         System.out.println("Test 3");

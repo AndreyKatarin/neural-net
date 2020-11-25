@@ -153,16 +153,16 @@ public class NeuronLayer {
         }
     }
 
-    public double[] calculateOutput() {
-        double[] output = new double[nextSize];
+    public double[] calculateNetOutput() {
+        double[] netOutput = new double[nextSize];
         for (int i = 0; i < nextSize; i++) {
             double total = 0.0;
             for (int j = 0; j < size; j++) {
                 total += neurons[j].getValue() * weights[j][i];
             }
-            output[i] = total + biases[i];
+            netOutput[i] = total + biases[i];
         }
-        return activation.apply(output);
+        return netOutput;
     }
 
     public double[] getOutput() {

@@ -86,14 +86,14 @@ public class CostFunction {
             (expected, actual) -> {
                 double temp = 0;
                 for (int i = 0; i < expected.length; i++) {
-                    temp +=  expected[i]*Math.log(actual[i]);
+                    temp +=  -expected[i]*Math.log(actual[i]);
                 }
-                return -temp;
+                return temp;
             },
             (expected, actual) -> {
                 double[] result = new double[expected.length];
                 for (int i = 0; i < expected.length; i++) {
-                    result[i] = (expected[i] - actual[i]);
+                    result[i] = expected[i] / actual[i]; //(expected[i] - actual[i]);
                 }
                 return result;
             }
