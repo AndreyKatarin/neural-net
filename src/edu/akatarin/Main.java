@@ -1,13 +1,13 @@
 package edu.akatarin;
 
-import java.io.File;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.util.*;
-import java.util.stream.Collectors;
+import edu.akatarin.util.MNISTLoader;
+
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Random;
 
 public class Main {
-    private static File[] data;
     private static List<Number> numbers;
     private static final double[][] numbersToTrain = {
             {0, 0, 0, 0}, //0
@@ -36,22 +36,6 @@ public class Main {
     };
 
     private final static int EPOCH_LIMIT = 10_000;
-
-    private static Number fileToNumber(File file) {
-        try {
-            List<String> lines = Files.readAllLines(file.toPath());
-            int number = Integer.parseInt(lines.get(lines.size() - 1));
-            double[] pixels = lines.stream().limit(lines.size() - 1)
-                    .flatMapToDouble(s -> {
-                        String[] strings = s.split("\\t");
-                        return Arrays.stream(strings).mapToDouble(val -> Double.parseDouble(val) / 255.0);
-                    }).toArray();
-            return new Number(pixels, number);
-        } catch (IOException e) {
-            e.printStackTrace();
-            return null;
-        }
-    }
 
     private static void testMNISTStochasticGD() {
         NeuronLayer input = new NeuronLayer(784, 800, Activation.Sigmoid, Initializer.XAVIER_NORMAL);
@@ -90,13 +74,13 @@ public class Main {
         neuralNetwork.setCostFunction(CostFunction.CROSS_ENTROPY);
         neuralNetwork.setOptimizer(new Optimizer.GradientDescent(0.5));
         neuralNetwork.setMomentum(0.7);
-        Collections.shuffle(numbers);
 
         int batchCount = numbers.size() / batchSize;
         double[][] expectedOutputs = new double[batchSize][10];
         int epoch = 0;
         double batchError;
         do {
+            Collections.shuffle(numbers);
             epoch++;
             for (int i = 0; i < batchCount; i++) {
                 int fromIndex = i * batchSize;
@@ -313,14 +297,6 @@ public class Main {
         System.out.println("Overall score: " + overall / numbersToTrain.length);
     }
 
-    private static void loadMNISTDB(){
-        data = new File("F:\\mnist\\data").listFiles();
-        if (data == null) System.exit(0);
-        numbers = Arrays.stream(data).parallel().map(Main::fileToNumber)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toList());
-    }
-
     public static void main(String[] args) {
         System.out.println("Test 1");
         testNetworkStepByStep();
@@ -329,10 +305,10 @@ public class Main {
         System.out.println("Test 3");
         testNetworkBatch();
 
-        loadMNISTDB();
-        System.out.println("Test MNIST 1");
-        testMNISTStochasticGD();
+        numbers = MNISTLoader.importData("data/train");
+       // System.out.println("Test MNIST 1");
+        //testMNISTStochasticGD();
         System.out.println("Test MNIST 2");
-        trainMiniBatchGD(32);
+        trainMiniBatchGD(256);
     }
 }
