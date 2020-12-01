@@ -71,7 +71,10 @@ public class NeuralNetwork {
     }
 
     public void feedForward(Number number) {
-        double[] pixels = number.getPixels();
+        feedForward(number.getPixels());
+    }
+
+    public void feedForward(double[] pixels) {
         inputLayer.setNeurons(pixels);
         NeuronLayer firstHiddenLayer = hiddenLayers[0];
         firstHiddenLayer.setNeurons(firstHiddenLayer.getActivation().apply(inputLayer.calculateNetOutput()));
@@ -100,22 +103,17 @@ public class NeuralNetwork {
     //ошибка значений нейронов выходного слоя
     private void calcOutputLayerError(double[] idealOut) {
         //How much does the cost change when the input to the last layer changes
-        //double[] dCdI = new double[outputLayer.getSize()];
         double[] outputs = outputLayer.getOutput();
         //How much does the cost change when the output from the neuron changes?
         double[] dCdO = costFunction.applyDerivative(idealOut, outputs);
         //How much does the output from the neuron change when the input changes?
         double[] dCdI = outputLayer.getActivation().applyDerivative(outputs, dCdO);
-//        for (int i = 0; i < outputLayer.getSize(); i++) {
-//            dCdI[i] = dOdI[i] * dCdO[i];
-//        }
         outputLayer.setDeltas(dCdI);
     }
 
     //распространяем ошибку выходного слоя на скрытые слои (hid-n, out)
     private void calcHiddenLayerError(NeuronLayer currentLayer, NeuronLayer previousLayer) {
         int currentLayerSize = currentLayer.getSize();
-        //double[] dCdI = new double[currentLayerSize];
         //dIHdWH - How much does the input value to the neuron change when wH changes?
         double[] output = Arrays.stream(currentLayer.getNeurons())
                 .mapToDouble(Neuron::getValue)
